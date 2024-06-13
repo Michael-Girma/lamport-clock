@@ -6,6 +6,7 @@ type Message struct {
 	ID        uuid.UUID
 	Value     string
 	Timestamp int
+	Type      MessageType
 }
 
 type MessageType int

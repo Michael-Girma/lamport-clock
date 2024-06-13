@@ -19,3 +19,10 @@ func (clock *Clock) UpdateClock(newValue int) {
 func (clock *Clock) Increment() {
 	clock.Value++
 }
+
+func NewClock() *Clock {
+	return &Clock{
+		Value: 0,
+		Mutex: &sync.Mutex{},
+	}
+}
