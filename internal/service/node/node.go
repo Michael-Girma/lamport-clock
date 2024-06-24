@@ -23,7 +23,7 @@ type Node struct {
 	Clock            *Clock
 	MessageQueue     []*nodegrpc.Message
 	Acknowledgements map[string][]string
-	Peers            []*Peer
+	Peers            map[string]*Peer
 	MDNSServer       *mdns.Server
 	ServiceAddresses map[constants.AddressType]string
 }
@@ -40,6 +40,7 @@ func NewNode() *Node {
 		Clock:            NewClock(),
 		MessageQueue:     make([]*nodegrpc.Message, 0),
 		Acknowledgements: make(map[string][]string),
+		Peers:            make(map[string]*Peer),
 		ServiceAddresses: make(map[constants.AddressType]string),
 	}
 }
@@ -99,7 +100,7 @@ func (node *Node) Bootstrap(hostname string, port int) {
 
 func (node *Node) LookupExistingNodes() {
 	// Make a channel for results and start listening
-	entriesCh := make(chan *mdns.ServiceEntry, 10) // Change entry size to use env var
+	entriesCh := make(chan *mdns.ServiceEntry, 15) // Change entry size to use env var
 	go func() {
 		for entry := range entriesCh {
 			nodeID := utils.GetNodeIDFromServiceInfo(entry.InfoFields)
@@ -113,7 +114,8 @@ func (node *Node) LookupExistingNodes() {
 					ServiceEntry: entry,
 					Client:       *grpcClient,
 				}
-				node.Peers = append(node.Peers, peer)
+				node.Peers[*nodeID] = peer
+				// node.Peers = append(;node.Peers, peer)
 				fmt.Printf("Got new entry: %s\n", *nodeID)
 			}
 		}
