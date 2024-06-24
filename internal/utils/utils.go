@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -35,5 +37,38 @@ func GetNodeIDFromServiceInfo(fields []string) *string {
 }
 
 func GenerateNodeInstanceName(nodeID uuid.UUID) string {
-	return fmt.Sprint("LNode-%s", nodeID)
+	return fmt.Sprintf("LNode-%s", nodeID)
+}
+
+func BuildAddressEntry(addressType constants.AddressType, hostname string, port int) string {
+	return fmt.Sprintf("%s::%s:%d", addressType, hostname, port)
+}
+
+func GetHostAndPortFromEntry(addressEntry string) (*string, *int, error) {
+	typeAndAddress := strings.Split(addressEntry, "::")
+	if len(typeAndAddress) < 2 {
+		return nil, nil, errors.New("invalid address supplied")
+	}
+	parts := strings.Split(typeAndAddress[1], ":")
+	if len(parts) < 2 {
+		return nil, nil, errors.New("invalid address supplied")
+	}
+	port, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, nil, errors.New("invalid port detected in address")
+	}
+	return &parts[0], &port, nil
+}
+
+func GetAddressFromServiceInfo(fields []string, addressType constants.AddressType) *string {
+	for _, value := range fields {
+		if strings.Contains(value, string(addressType)) {
+			parts := strings.Split(value, fmt.Sprintf("%s::", constants.GRPCAddressType))
+			if len(parts) < 2 {
+				return nil
+			}
+			return &parts[1]
+		}
+	}
+	return nil
 }
