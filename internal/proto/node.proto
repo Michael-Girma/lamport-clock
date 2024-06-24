@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "internal/server/grpc";
+
+service Node {
+    rpc RecieveMessage(Message) returns (Message) {}
+}
+
+message Message {
+    string ID = 1;
+    string Value = 2;
+    MessageType Type = 3;
+    int32 Timestamp = 4;
+}
+
+enum MessageType {
+    Acknowledgment = 0;
+    OrderGuarantee = 1;
+}
