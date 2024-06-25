@@ -15,10 +15,10 @@ import (
 
 func main() {
 	nodes := make([]*node.Node, 0)
+	PrintNodes(&nodes)
 
 	var wg sync.WaitGroup
 	for i := range 15 {
-		time.Sleep(1 * time.Second)
 		wg.Add(1)
 		go func() {
 			serviceNode := node.NewNode()
@@ -28,7 +28,6 @@ func main() {
 			wg.Done()
 		}()
 	}
-	PrintNodes(nodes)
 	wg.Wait()
 
 	defer func() {
@@ -78,7 +77,7 @@ func NewAddrForNode() (*string, *int, error) {
 	return &hostname, &port, nil
 }
 
-func PrintNodes(nodes []*node.Node) {
+func PrintNodes(nodes *[]*node.Node) {
 	ticker := time.NewTicker(5 * time.Second)
 	quit := make(chan struct{})
 
@@ -89,8 +88,8 @@ func PrintNodes(nodes []*node.Node) {
 			select {
 			case <-ticker.C:
 				peerLog := ""
-				fmt.Println(len(nodes))
-				for _, node := range nodes {
+				fmt.Println(len(*nodes))
+				for _, node := range *nodes {
 					// nodeObj := *node
 					fmt.Printf("Node %s has %d peers\n", node.ID, len(node.Peers))
 				}

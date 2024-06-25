@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option go_package = "internal/server/grpc";
+
+message Peer {
+    string ID = 1;
+    repeated string Addresses = 4;
+    
+}

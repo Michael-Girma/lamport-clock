@@ -18,6 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeClient interface {
 	RecieveMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Message, error)
+	RegisterPeer(ctx context.Context, in *Peer, opts ...grpc.CallOption) (*Message, error)
 }
 
 type nodeClient struct {
@@ -37,11 +38,21 @@ func (c *nodeClient) RecieveMessage(ctx context.Context, in *Message, opts ...gr
 	return out, nil
 }
 
+func (c *nodeClient) RegisterPeer(ctx context.Context, in *Peer, opts ...grpc.CallOption) (*Message, error) {
+	out := new(Message)
+	err := c.cc.Invoke(ctx, "/Node/RegisterPeer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeServer is the server API for Node service.
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility
 type NodeServer interface {
 	RecieveMessage(context.Context, *Message) (*Message, error)
+	RegisterPeer(context.Context, *Peer) (*Message, error)
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -51,6 +62,9 @@ type UnimplementedNodeServer struct {
 
 func (UnimplementedNodeServer) RecieveMessage(context.Context, *Message) (*Message, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RecieveMessage not implemented")
+}
+func (UnimplementedNodeServer) RegisterPeer(context.Context, *Peer) (*Message, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterPeer not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
 
@@ -83,6 +97,24 @@ func _Node_RecieveMessage_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Node_RegisterPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Peer)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).RegisterPeer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Node/RegisterPeer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).RegisterPeer(ctx, req.(*Peer))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Node_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "Node",
 	HandlerType: (*NodeServer)(nil),
@@ -90,6 +122,10 @@ var _Node_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecieveMessage",
 			Handler:    _Node_RecieveMessage_Handler,
+		},
+		{
+			MethodName: "RegisterPeer",
+			Handler:    _Node_RegisterPeer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -72,3 +72,11 @@ func GetAddressFromServiceInfo(fields []string, addressType constants.AddressTyp
 	}
 	return nil
 }
+
+func GetAddresssesForNode(entries map[constants.AddressType]string) []string {
+	addresses := make([]string, 0)
+	for _, value := range entries {
+		addresses = append(addresses, value)
+	}
+	return addresses
+}

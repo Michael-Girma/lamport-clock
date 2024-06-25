@@ -1,19 +1,12 @@
 syntax = "proto3";
 
+import "message.proto";
+import "peer.proto";
+
 option go_package = "internal/server/grpc";
 
 service Node {
     rpc RecieveMessage(Message) returns (Message) {}
+    rpc RegisterPeer(Peer) returns (Message) {}
 }
 
-message Message {
-    string ID = 1;
-    string Value = 2;
-    MessageType Type = 3;
-    int32 Timestamp = 4;
-}
-
-enum MessageType {
-    Acknowledgment = 0;
-    OrderGuarantee = 1;
-}
