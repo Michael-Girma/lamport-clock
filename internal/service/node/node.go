@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,15 +24,17 @@ type Node struct {
 	Clock            *Clock
 	MessageQueue     []*nodegrpc.Message
 	Acknowledgements map[string][]string
-	Peers            []*Peer
+	Peers            map[string]*Peer
 	MDNSServer       *mdns.Server
 	ServiceAddresses map[constants.AddressType]string
 }
 
 type Peer struct {
-	ServiceEntry *mdns.ServiceEntry
-	Client       nodegrpc.NodeClient
+	ID     string
+	Client nodegrpc.NodeClient
 }
+
+var registerPeerMtx sync.Mutex
 
 func NewNode() *Node {
 
@@ -40,6 +43,7 @@ func NewNode() *Node {
 		Clock:            NewClock(),
 		MessageQueue:     make([]*nodegrpc.Message, 0),
 		Acknowledgements: make(map[string][]string),
+		Peers:            make(map[string]*Peer),
 		ServiceAddresses: make(map[constants.AddressType]string),
 	}
 }
@@ -99,22 +103,36 @@ func (node *Node) Bootstrap(hostname string, port int) {
 
 func (node *Node) LookupExistingNodes() {
 	// Make a channel for results and start listening
-	entriesCh := make(chan *mdns.ServiceEntry, 10) // Change entry size to use env var
+	entriesCh := make(chan *mdns.ServiceEntry, 15) // Change entry size to use env var
 	go func() {
 		for entry := range entriesCh {
 			nodeID := utils.GetNodeIDFromServiceInfo(entry.InfoFields)
 			if nodeID != nil && *nodeID != node.ID.String() {
-				grpcClient, err := GenerateNodeClient(entry)
+				grpcClient, err := GenerateClientFromMDNSEntry(entry)
 				if err != nil {
 					log.Printf("Couldn't create client for peer %s: %s\n", *nodeID, err)
 					continue
 				}
 				peer := &Peer{
-					ServiceEntry: entry,
-					Client:       *grpcClient,
+					ID:     *nodeID,
+					Client: *grpcClient,
 				}
-				node.Peers = append(node.Peers, peer)
-				fmt.Printf("Got new entry: %s\n", *nodeID)
+				registerPeerMtx.Lock()
+				node.Peers[*nodeID] = peer
+				registerPeerMtx.Unlock()
+
+				fmt.Printf("Got new entry: %s. Adverstising self to peer \n", *nodeID)
+				nodeInfo := &nodegrpc.Peer{
+					ID:        node.ID.String(),
+					Addresses: utils.GetAddresssesForNode(node.ServiceAddresses),
+				}
+				// res, err peer.Client.RegisterPeer(context.Background(), nodeInfo)
+				res, err := peer.Client.RegisterPeer(context.Background(), nodeInfo)
+				if err != nil {
+					log.Printf("Error response from register peer request %s\n", err)
+					continue
+				}
+				log.Println(res.String())
 			}
 		}
 	}()
@@ -128,19 +146,45 @@ func (node *Node) LookupExistingNodes() {
 	// close(entriesCh)
 }
 
-func GenerateNodeClient(entry *mdns.ServiceEntry) (*nodegrpc.NodeClient, error) {
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func (node *Node) RegisterPeer(ctx context.Context, peerInfo *nodegrpc.Peer) (*nodegrpc.Message, error) {
+	grpcAddress := utils.GetAddressFromServiceInfo(peerInfo.Addresses, constants.GRPCAddressType)
+	if grpcAddress == nil {
+		log.Println("Couldn't perform register peer request")
+	}
+	grpcClient, err := GenerateGRPCClient(*grpcAddress)
+	if err != nil {
+		log.Println("Couldn't generate grpc client from peer information")
+		return nil, err
+	}
+	peerEntry := &Peer{
+		ID:     peerInfo.ID,
+		Client: *grpcClient,
+	}
+	registerPeerMtx.Lock()
+	node.Peers[peerInfo.ID] = peerEntry
+	registerPeerMtx.Unlock()
+	return &nodegrpc.Message{
+		Type: nodegrpc.MessageType_Acknowledgment,
+	}, nil
+}
 
+func GenerateClientFromMDNSEntry(entry *mdns.ServiceEntry) (*nodegrpc.NodeClient, error) {
 	grpcAddressOfClient := utils.GetAddressFromServiceInfo(entry.InfoFields, constants.GRPCAddressType)
 	if grpcAddressOfClient == nil {
 		return nil, errors.New("couldn't generate grpc client for peer")
 	}
+	return GenerateGRPCClient(*grpcAddressOfClient)
+}
 
-	conn, err := grpc.NewClient(fmt.Sprintf("%s:%s", "http://", *grpcAddressOfClient), opts...)
+func GenerateGRPCClient(connStr string) (*nodegrpc.NodeClient, error) {
+	var opts []grpc.DialOption
+	// opt := &grpc.DialOption{}
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(fmt.Sprintf(connStr), opts...)
 	if err != nil {
-		var nodeID = utils.GetNodeIDFromServiceInfo(entry.InfoFields)
-		return nil, fmt.Errorf("couldn't create grpc client for peer %s at address %s: %s", *nodeID, *grpcAddressOfClient, err)
+		// var nodeID = utils.GetNodeIDFromServiceInfo(entry.InfoFields)
+		// return nil, fmt.Errorf("couldn't create grpc client for peer %s at address %s: %s", *nodeID, *grpcAddressOfClient, err)
+		return nil, fmt.Errorf("Couldn't create grpc client for peer")
 	}
 	client := nodegrpc.NewNodeClient(conn)
 	return &client, nil

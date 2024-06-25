@@ -14,17 +14,17 @@ import (
 )
 
 func main() {
-	nodes := make([]node.Node, 0)
+	nodes := make([]*node.Node, 0)
+	PrintNodes(&nodes)
 
 	var wg sync.WaitGroup
-	for i := range 10 {
-		time.Sleep(1 * time.Second)
+	for i := range 15 {
 		wg.Add(1)
 		go func() {
 			serviceNode := node.NewNode()
-			SetupNode(*serviceNode)
+			nodes = append(nodes, serviceNode)
+			SetupNode(serviceNode)
 			fmt.Printf("Created node %d\n", i)
-			nodes = append(nodes, *serviceNode)
 			wg.Done()
 		}()
 	}
@@ -37,7 +37,7 @@ func main() {
 	}()
 }
 
-func SetupNode(node node.Node) {
+func SetupNode(node *node.Node) {
 	hostname, port, err := NewAddrForNode()
 	if err != nil {
 		log.Fatalf("Couldn't create new address for node")
@@ -75,4 +75,30 @@ func NewAddrForNode() (*string, *int, error) {
 	hostname := "localhost"
 	// addr := fmt.Sprintf("localhost:%d", port)
 	return &hostname, &port, nil
+}
+
+func PrintNodes(nodes *[]*node.Node) {
+	ticker := time.NewTicker(5 * time.Second)
+	quit := make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				peerLog := ""
+				fmt.Println(len(*nodes))
+				for _, node := range *nodes {
+					// nodeObj := *node
+					fmt.Printf("Node %s has %d peers\n", node.ID, len(node.Peers))
+				}
+				fmt.Println(peerLog)
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	wg.Done()
 }
